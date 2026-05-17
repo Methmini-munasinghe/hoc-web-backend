@@ -11,11 +11,9 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Use memory storage — file stays in buffer, we upload manually to Cloudinary
-const storage = multer.memoryStorage();
-export const upload = multer({
-    storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+const multerConfig = {
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowed = ["image/jpeg", "image/png", "image/webp"];
         if (!allowed.includes(file.mimetype)) {
@@ -23,7 +21,9 @@ export const upload = multer({
         }
         cb(null, true);
     },
-});
+};
+
+export const createUpload = () => multer(multerConfig);
 // Helper to upload a buffer to Cloudinary
 export const uploadToCloudinary = (buffer, folder = "products") => {
     return new Promise((resolve, reject) => {
