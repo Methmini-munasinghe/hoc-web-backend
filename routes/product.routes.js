@@ -6,11 +6,10 @@ import {
     updateProduct,
     deleteProduct
 } from "../controllers/product.controller.js";
-import { upload } from "../config/cloudinary.js";
+import { createUpload } from "../config/cloudinary.js";
 
 const router = Router();
-
-// Handles mainImage (1) + additionalImages (up to 3)
+const upload = createUpload(); 
 const uploadFields = upload.fields([
     { name: "mainImage", maxCount: 1 },
     { name: "additionalImages", maxCount: 3 },
