@@ -41,35 +41,128 @@ export const createProduct = async (req, res) => {
 
 export const getProducts = async (req, res) => {
 	try {
-		const { page = 1, limit = 20, status, category, q } = req.query;
+		const {
+			page = 1,
+			limit = 20,
+			q,
+			categoryId,
+			categoryLabel,
+			includeInactive,
+			status,
+			featured,
+			sort
+		} = req.query;
 		const filter = {};
-		filter.isActive = true;
+		const LOW_STOCK_THRESHOLD = 5;
+		const andFilters = [];
 
-		if (status) {
-			filter.status = status;
+		if (includeInactive !== "true") {
+			filter.isActive = true;
 		}
 
-		if (category) {
-			filter.category = category;
+		if (categoryId || categoryLabel) {
+			const categoryMatch = [];
+			if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+				categoryMatch.push({ categoryId });
+			}
+			if (categoryLabel) {
+				categoryMatch.push({ categoryType: { $regex: categoryLabel, $options: "i" } });
+			}
+			if (categoryMatch.length) {
+				andFilters.push({ $or: categoryMatch });
+			}
 		}
 
 		if (q) {
-			filter.productName = { $regex: q, $options: "i" };
+			andFilters.push({
+				$or: [
+					{ productName: { $regex: q, $options: "i" } },
+					{ sku: { $regex: q, $options: "i" } },
+					{ categoryType: { $regex: q, $options: "i" } }
+				]
+			});
+		}
+
+		if (status) {
+			switch (status) {
+				case "active":
+					filter.isActive = true;
+					filter.item_count = { $gt: LOW_STOCK_THRESHOLD };
+					break;
+				case "low":
+					filter.isActive = true;
+					filter.item_count = { $gt: 0, $lte: LOW_STOCK_THRESHOLD };
+					break;
+				case "out":
+					filter.isActive = true;
+					filter.item_count = 0;
+					break;
+				case "draft":
+					filter.isActive = false;
+					break;
+				default:
+					break;
+			}
+		}
+
+		if (featured === "true") {
+			filter.isFeatured = true;
+		}
+		if (featured === "false") {
+			filter.isFeatured = false;
+		}
+
+		if (andFilters.length) {
+			filter.$and = andFilters;
 		}
 
 		const pageNumber = Number(page) || 1;
 		const limitNumber = Number(limit) || 20;
 		const skip = (pageNumber - 1) * limitNumber;
 
-		const [items, total] = await Promise.all([
-			Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNumber),
-			Product.countDocuments(filter)
+		const sortMap = {
+			newest: { createdAt: -1 },
+			oldest: { createdAt: 1 },
+			"price-asc": { price: 1 },
+			"price-desc": { price: -1 },
+			"stock-asc": { item_count: 1 },
+			"stock-desc": { item_count: -1 },
+			"name-asc": { productName: 1 },
+			"name-desc": { productName: -1 }
+		};
+		const sortOption = sortMap[sort] || { createdAt: -1 };
+
+		const [items, total, totalAll, activeListings, outOfStock, drafts] = await Promise.all([
+			Product.find(filter).sort(sortOption).skip(skip).limit(limitNumber),
+			Product.countDocuments(filter),
+			Product.countDocuments({}),
+			Product.countDocuments({
+				isActive: true,
+				item_count: { $gt: LOW_STOCK_THRESHOLD }
+			}),
+			Product.countDocuments({
+				isActive: true,
+				item_count: 0
+			}),
+			Product.countDocuments({
+				isActive: false
+			})
 		]);
 
 		return res.status(200).json({
 			success: true,
 			data: items,
-			meta: { total, page: pageNumber, limit: limitNumber }
+			meta: {
+				total,
+				page: pageNumber,
+				limit: limitNumber,
+				stats: {
+					total: totalAll,
+					activeListings,
+					outOfStock,
+					drafts
+				}
+			}
 		});
 	} catch (error) {
 		return res.status(500).json({ success: false, message: error.message });

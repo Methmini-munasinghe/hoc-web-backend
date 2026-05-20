@@ -3,9 +3,12 @@ import crypto from "crypto";
 
 const productVariantSchema = new mongoose.Schema(
 	{
+		sku: { type: String, trim: true },
 		size: { type: String, trim: true },
 		stockQty: { type: Number, default: 0, min: 0 },
-		skuSuffix: { type: String, trim: true }
+		skuSuffix: { type: String, trim: true },
+		price: { type: Number, default: 0, min: 0 },
+		status: { type: String, default: "Active", trim: true }
 	},
 	{ _id: false }
 );
@@ -55,7 +58,6 @@ const productSchema = new mongoose.Schema(
 	}
 );
 
-// Auto-generate SKU in format PRD-<timestamp>-<RANDOM>
 productSchema.pre("save", function () {
 	if (!this.sku) {
 		const ts = Date.now();
