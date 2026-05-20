@@ -2,16 +2,20 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
-import mongoose from "mongoose";
 import productRoutes from "./routes/product.routes.js";
+import categoryRoutes from "./routes/category.routes.js";
+import { startDB } from "./db.js";
 
 const app = express();
 
 app.use(express.json());
-
+app.use((req, res, next) => {
+    next();
+});
 app.use("/api/products", productRoutes);
+app.use("/api/category", categoryRoutes);
 //error handler
-app.use((err, req, res) => {
+app.use((err, req, res, next) => {
     if (err.code === "LIMIT_FILE_SIZE") {
         return res.status(400).json({
             success: false,
@@ -31,18 +35,7 @@ app.use((err, req, res) => {
 });
 
 
-const PORT = process.env.PORT || 5000;
+// Start DB and server
+startDB(app).catch(() => process.exit(1));
 
-mongoose
-    .connect(process.env.MONGO_URL)
-    .then(() => {
-        console.log("MongoDB connected successfully");
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
-        });
-    })
-    .catch((error) => {
-        console.error("Mongo connection error:", error.message);
-    });
-
-export default app; 
+export default app;
